@@ -1,17 +1,81 @@
 {
   "compilerOptions": {
+    // Версия JavaScript, в которую компилируется TypeScript код
     "target": "ES2020",
-    "module": "commonjs",
+    
+    // Система модулей для генерации кода
+    "module": "nodenext",
+    
+    // Стратегия разрешения модулей (современная для Node.js)
+    "moduleResolution": "nodenext",
+    
+    // Директория для скомпилированных файлов
     "outDir": "./dist",
+    
+    // Корневая директория с исходным кодом
     "rootDir": "./src",
+    
+    // Псевдонимы для импортов
+    "paths": {
+      "src/*": ["./src/*"],
+      "@/*": ["./src/*"]
+    },
+
+    // Включение всех строгих проверок типов
     "strict": true,
+    
+    // Позволяет импортировать CommonJS модули как ES модули
     "esModuleInterop": true,
+    
+    // Пропускать проверку типов в декларациях файлов (.d.ts)
     "skipLibCheck": true,
+    
+    // Генерировать декларационные файлы (.d.ts)
+    "declaration": true,
+    
+    // Генерировать source maps для отладки
+    "sourceMap": true,
+    
+    // Удалять комментарии из скомпилированного кода
+    "removeComments": true,
+    
+    // Не генерировать файлы при ошибках
+    "noEmitOnError": true,
+    
+    // Включать все файлы из node_modules при проверке типов
     "forceConsistentCasingInFileNames": true,
+    
+    // Проверять .js файлы на ошибки типов
     "checkJs": true,
-    "resolveJsonModule": true
+    
+    // Разрешать импорт JSON файлов
+    "resolveJsonModule": true,
+    
+    // Включить экспериментальную поддержку декораторов
+    "experimentalDecorators": true,
+    
+    // Включить метаданные для декораторов
+    "emitDecoratorMetadata": true,
+    
+    // Проверять только синтаксис без генерации файлов
+    "noEmit": false,
+    
+    // Включить проверку неиспользуемых переменных
+    "noUnusedLocals": false,
+    
+    // Включить проверку неиспользуемых параметров
+    "noUnusedParameters": true,
+    
+    // Включить проверку на неявные any типы
+    "noImplicitAny": true,
+    
+    // Включить проверку на неявные возвраты undefined
+    "noImplicitReturns": true
   },
   
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  // Файлы и паттерны для включения в компиляцию
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  
+  // Файлы и паттерны для исключения из компиляции
+  "exclude": ["node_modules", "dist"]
 }
