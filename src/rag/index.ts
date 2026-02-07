@@ -127,6 +127,19 @@ export class RAGSystem {
         });
       }
 
+      // Поиск экспортируемых функций и переменных
+      const exportMatch = trimmed.match(/export\s+(?:const|let|var)\s+(\w+)/);
+      if (exportMatch) {
+        fragments.push({
+          id: `${filePath}-${lineNumber}`,
+          filePath,
+          content: line,
+          functionName: exportMatch[1],
+          lineNumber,
+          type: 'variable',
+        });
+      }
+
       // Поиск импортов
       if (trimmed.startsWith('import ')) {
         fragments.push({

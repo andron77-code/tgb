@@ -32,6 +32,13 @@ async function demonstrateRAG() {
       'JWT токен генерация',
       'TypeScript интерфейсы',
       'дата форматирование',
+      'HTTPQuery класс методы GET POST PUT DELETE',
+      'универсальный HTTP клиент запросы',
+      'аутентифицированные HTTP запросы Bearer токен',
+      'GoogleSheetsClient рефакторинг HTTPQuery',
+      'MasterChat класс HTTP запросы',
+      'fetch замена на HTTPQuery',
+      'HTTP методы API запросы',
     ];
 
     console.log('\n🔍 Примеры семантического поиска:\n');

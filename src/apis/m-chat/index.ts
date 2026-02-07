@@ -1,3 +1,5 @@
+import { httpQuery } from '../http';
+
 class MasterChat {
   private url = `https://mastercheb.ru/chat`;
   private session = 'ce653735-a6cb-4a8f-a2b0-dfd738ae210b';
@@ -9,22 +11,24 @@ class MasterChat {
   }
 
   async query(message: string) {
-    const response = await fetch(this.url, {
-      method: 'POST',
+    const response = await httpQuery.post(this.url, {
       headers: {
         'Content-Type': 'application/json',
         // Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({
+      body: {
         filters: {},
         message: message,
         project_id: this.project,
         session_id: this.session,
-      }),
+      },
     });
-    // const json = await response.json()
-    // logger.log('response -', json)
-    return response.text();
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.data as string;
   }
 }
 

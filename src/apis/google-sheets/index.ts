@@ -5,6 +5,7 @@
 
 import { logger } from '../../helpers';
 import crypto from 'crypto';
+import { httpQuery } from '../http';
 
 // Тип для представления JSON ключа сервисного аккаунта Google
 export type GoogleServiceAccountJsonObjectKey = {
@@ -142,18 +143,19 @@ export default class GoogleSheetsClient {
     });
 
     // Выполнение запроса к Google OAuth 2.0 endpoint
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
+    const response = await httpQuery.post('https://oauth2.googleapis.com/token', {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
+      body: params.toString(),
     });
 
-    // Обработка ответа от сервера
-    const data = (await res.json()) as {
+    if (!response.ok) {
+      throw new Error(JSON.stringify(response.data));
+    }
+
+    const data = response.data as {
       access_token?: string;
       expires_in?: number;
     };
-    if (!res.ok) throw new Error(JSON.stringify(data));
     if (!data.access_token) throw new Error('No access_token in response');
 
     // Кэширование токена с установкой времени истечения
@@ -164,47 +166,13 @@ export default class GoogleSheetsClient {
   }
 
   /**
-   * Универсальный метод для выполнения HTTP запросов к Google Sheets API
-   * @param method - HTTP метод (GET, POST, PUT)
-   * @param apiUrl - URL эндпоинта API
-   * @param body - Тело запроса для POST/PUT методов
-   * @returns Ответ от API в формате JSON
-   */
-  private async query(
-    method: 'GET' | 'POST' | 'PUT',
-    apiUrl: string,
-    body?: unknown,
-  ): Promise<unknown> {
-    // Получение токена доступа с автоматическим обновлением при необходимости
-    const accessToken = await this.getAccessToken();
-
-    // Подготовка опций для HTTP запроса
-    const fetchOptions: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${accessToken}`, // Аутентификация через Bearer токен
-      },
-    };
-
-    // Добавление тела запроса для POST и PUT методов
-    if (method !== 'GET' && body !== undefined) {
-      fetchOptions.body = JSON.stringify(body);
-    }
-
-    // Выполнение HTTP запроса к API
-    const response = await fetch(apiUrl, fetchOptions);
-    return response.json();
-  }
-
-  /**
    * Создание менеджера для работы с конкретной таблицей Google Sheets
    * @param spreadSheetId - ID таблицы Google Sheets
    * @returns Объект менеджера с методами для работы с данными таблицы
    */
   public createTableSheetManager(spreadSheetId: string): ITableSheetManager {
     // Асинхронная загрузка метаданных таблицы для кэширования
-    this.query('GET', `${this.sheetsApiUri}/${spreadSheetId}`)
+    this.loadSheetMetadata(spreadSheetId)
       .then((res) => {
         this.sheetsData[spreadSheetId] = res;
         console.log('result data sheets: ', JSON.stringify(res, null, 4));
@@ -226,7 +194,20 @@ export default class GoogleSheetsClient {
 
         // Формирование URL для запроса данных листа
         const urlGet = `${this.sheetsApiUri}/${spreadSheetId}/values/${listName}`;
-        return this.query('GET', urlGet) as Promise<unknown[][]>;
+        const accessToken = await this.getAccessToken();
+        
+        const response = await httpQuery.get(urlGet, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.data as unknown[][];
       },
 
       /**
@@ -248,10 +229,45 @@ export default class GoogleSheetsClient {
         const fullRange = range ? `${listName}!${range}` : listName;
         // URL для запроса обновления данных с опцией RAW для вставки как есть
         const urlPut = `${this.sheetsApiUri}/${spreadSheetId}/values/${fullRange}?valueInputOption=RAW`;
+        
+        const accessToken = await this.getAccessToken();
+        
+        const response = await httpQuery.put(urlPut, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: { values: data },
+        });
 
-        // Выполнение запроса на обновление данных
-        return this.query('PUT', urlPut, { values: data });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.data;
       },
     };
+  }
+
+  /**
+   * Загрузка метаданных таблицы для кэширования
+   * @param spreadSheetId - ID таблицы
+   * @returns Метаданные таблицы
+   */
+  private async loadSheetMetadata(spreadSheetId: string): Promise<unknown> {
+    const accessToken = await this.getAccessToken();
+    
+    const response = await httpQuery.get(`${this.sheetsApiUri}/${spreadSheetId}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.data;
   }
 }
