@@ -177,8 +177,9 @@ class HTTPQuery {
   }
 }
 
-// Экспорт экземпляра класса для использования в приложении
-export const httpQuery = new HTTPQuery();
+// Экспорт типа класса HTTPQuery
+export type THttpQuery = HTTPQuery;
 
-// Экспорт класса для возможности создания экземпляров с кастомными настройками
-export default HTTPQuery;
+// Экспорт экземпляра класса HTTPQuery для возможности использования в приложении
+
+export default new HTTPQuery();

@@ -1,25 +1,23 @@
 {
+  "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     // Версия JavaScript, в которую компилируется TypeScript код
     "target": "ES2020",
     
     // Система модулей для генерации кода
-    "module": "nodenext",
+    "module": "commonjs",
     
-    // Стратегия разрешения модулей (современная для Node.js)
-    "moduleResolution": "nodenext",
+    // Стратегия разрешения модулей (классическая для Node.js)
+    "moduleResolution": "node",
     
     // Директория для скомпилированных файлов
     "outDir": "./dist",
     
+    // Базовая директория для разрешения модулей
+    "baseUrl": "./",
+    
     // Корневая директория с исходным кодом
     "rootDir": "./src",
-    
-    // Псевдонимы для импортов
-    "paths": {
-      "src/*": ["./src/*"],
-      "@/*": ["./src/*"]
-    },
 
     // Включение всех строгих проверок типов
     "strict": true,

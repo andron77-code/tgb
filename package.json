@@ -8,6 +8,7 @@
     "server-express": "ts-node src/server/index.ts",
     "server-express-dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/server/express/index.ts",
     "server-fastify-dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/server/fastify/index.ts",
+    "rag-check": "nodemon --watch 'src/**/*.ts' --exec 'ts-node -r tsconfig-paths/register' src/catalog-rags/um/rag/check.ts",
     "lint": "eslint 'src/**/*.ts'"
   },
   "keywords": [],
@@ -19,9 +20,11 @@
     "@fastify/env": "^5.0.3",
     "@fastify/swagger": "^9.6.1",
     "@fastify/swagger-ui": "^5.2.5",
+    "@xenova/transformers": "^2.17.2",
     "dayjs": "^1.11.19",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "fast-xml-parser": "^5.3.4",
     "fastify": "^5.7.2",
     "json-schema-to-ts": "^3.1.1",
     "telegraf": "^4.16.3"
@@ -35,6 +38,7 @@
     "nodemon": "^3.1.11",
     "prettier": "^3.7.4",
     "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.54.0"
   }
