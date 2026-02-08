@@ -8,7 +8,7 @@
     "server-express": "ts-node src/server/index.ts",
     "server-express-dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/server/express/index.ts",
     "server-fastify-dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/server/fastify/index.ts",
-    "rag-check": "nodemon --watch 'src/**/*.ts' --exec 'ts-node -r tsconfig-paths/register' src/catalog-rags/um/rag/check.ts",
+    "rag-check": "ts-node -r tsconfig-paths/register src/catalog-rags/um/rag/check.ts",
     "lint": "eslint 'src/**/*.ts'"
   },
   "keywords": [],

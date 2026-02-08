@@ -11,8 +11,10 @@ interface Product {
   id: string;
   name: string;
   category: string;
+  categoryId: string;
   price: string;
   description: string;
+  vendorCode?: string;
 }
 
 // ----------------------------
@@ -49,10 +51,10 @@ export class UmRag {
 
     this.catalogPath = catalogPath;
     this.config = {
-      embeddingModel: config.embeddingModel || "Xenova/all-MiniLM-L6-v2",
+      embeddingModel: config.embeddingModel || "Xenova/distiluse-base-multilingual-cased-v2",
       generationModel: config.generationModel || "Xenova/distilgpt2",
-      maxTokens: config.maxTokens || 550,
-      temperature: config.temperature || 0.7,
+      maxTokens: config.maxTokens || 1000,
+      temperature: config.temperature || 0.3,
       topK: config.topK || 3,
     };
   }
@@ -122,7 +124,9 @@ export class UmRag {
         id: offer.id?.toString() || "",
         name: offer.name || "",
         category: offer.categoryId?.toString() || "",
+        categoryId: offer.categoryId?.toString() || "",
         price: offer.price?.toString() || "",
+        vendorCode: offer.vendorCode || "",
         description: removeTags(offer.description || "")  || "",
       }));
     } else if (json.catalog?.product) {
@@ -140,10 +144,10 @@ export class UmRag {
   // ----------------------------
   private buildDocuments(products: Product[]): string[] {
     return products.map((p) => `
-ID: ${p.id}
-Название: ${p.name}
-Категория: ${p.category}
-Цена: ${p.price}
+Товар: ${p.name}
+Артикул: ${p.vendorCode || 'Не указан'}
+Категория: ${p.categoryId}
+Цена: ${p.price} руб.
 Описание: ${p.description}
 `);
   }
@@ -177,14 +181,28 @@ ID: ${p.id}
 
     this.embeddings = [];
 
-    for (const doc of this.documents) {
+    // Создаем эмбеддинги параллельно для ускорения
+    const batchSize = 10; // Обрабатываем по 10 документов за раз
+    for (let i = 0; i < this.documents.length; i += batchSize) {
+      const batch = this.documents.slice(i, i + batchSize);
+      
       try {
-        const output = await this.embedder(doc, { pooling: "mean", normalize: true });
-        this.embeddings.push(Array.from(output.data) as number[]);
+        const batchPromises = batch.map(async (doc) => {
+          const output = await this.embedder(doc, { pooling: "mean", normalize: true });
+          return Array.from(output.data) as number[];
+        });
+        
+        const batchEmbeddings = await Promise.all(batchPromises);
+        this.embeddings.push(...batchEmbeddings);
+        
+        console.log(`Обработано ${Math.min(i + batchSize, this.documents.length)}/${this.documents.length} документов`);
       } catch (error) {
-        console.warn(`Ошибка при создании эмбеддинга для документа: ${error}`);
-        // Добавляем пустой вектор чтобы сохранить соответствие индексов
-        this.embeddings.push(new Array(384).fill(0)); // размерность для all-MiniLM-L6-v2
+        console.warn(`Ошибка при создании эмбеддингов для батча: ${error}`);
+        // Добавляем пустые векторы чтобы сохранить соответствие индексов
+        const emptyVectors = Array(Math.min(batchSize, this.documents.length - i))
+          .fill(null)
+          .map(() => new Array(512).fill(0)); // размерность для distiluse-base-multilingual
+        this.embeddings.push(...emptyVectors);
       }
     }
   }
@@ -207,7 +225,7 @@ ID: ${p.id}
       this.documents = this.buildDocuments(this.products);
 
       // Инициализация моделей
-      // await this.initializeModels();
+      await this.initializeModels();
 
       // Создание эмбеддингов
       await this.createEmbeddings();
@@ -244,27 +262,68 @@ ID: ${p.id}
         score: this.cosineSimilarity(queryEmbedding, emb),
       }));
 
-      // Сортировка по релевантности
-      scores.sort((a, b) => b.score - a.score);
+      // Фильтрация по порогу схожести (только релевантные результаты)
+      const minSimilarity = 0.1; // Снижаем порог для лучших результатов
+      const filteredScores = scores.filter(s => s.score > minSimilarity);
 
-      const topDocs = scores.slice(0, k).map(s => this.documents[s.index]);
-      const context = topDocs.join("\n");
+      // Сортировка по релевантности
+      filteredScores.sort((a, b) => b.score - a.score);
+
+      const topDocs = filteredScores.slice(0, k).map(s => this.documents[s.index]);
       
-      return context
+      if (topDocs.length === 0) {
+        // Если ничего не найдено, попробуем без порога
+        const fallbackScores = scores.sort((a, b) => b.score - a.score).slice(0, k);
+        const fallbackDocs = fallbackScores.map(s => this.documents[s.index]);
+        const context = fallbackDocs.join("\n");
+        
+        // Формирование промпта для случая без точных совпадений
+        const prompt = `
+Ты профессиональный ассистент по каталогу алюминиевых профилей и комплектующих компании "Умные машины".
+
+ВНИМАНИЕ: Точные совпадения не найдены. Попробуй найти похожие товары в контексте.
+
+Контекст (похожие товары):
+${context}
+
+Вопрос клиента: ${question}
+
+Ответ:
+`;
+        
+        // Генерация ответа
+        const result = await this.generator(prompt, {
+          max_new_tokens: this.config.maxTokens,
+          temperature: this.config.temperature,
+        });
+
+        let answer = result[0].generated_text;
+        answer = answer.replace(/Ответ:\s*$/, '').trim();
+        
+        return answer || "К сожалению, по вашему запросу ничего не найдено в каталоге.";
+      }
+
+      const context = topDocs.join("\n");
 
       // Формирование промпта
       const prompt = `
-Ты ассистент по каталогу.
-Отвечай только на основе контекста.
-Если данных нет — скажи, что товара нет.
+Ты профессиональный ассистент по каталогу алюминиевых профилей и комплектующих компании "Умные машины".
 
-Контекст:
-${context}
-
-Вопрос:
+АНАЛИЗ ЗАПРОСА:
 ${question}
 
-Ответ:
+ДОСТУПНЫЕ ТОВАРЫ (из каталога):
+${context}
+
+ИНСТРУКЦИИ:
+1. Проанализируй товары в контексте
+2. Найди прямые соответствия запросу
+3. Если точных совпадений нет, предложи похожие варианты
+4. Укажи артикулы, цены и характеристики
+5. Отвечай на русском языке
+6. Будь краток, но исчерпывающ
+
+ОТВЕТ:
 `;
 
       // Генерация ответа
@@ -273,7 +332,18 @@ ${question}
         temperature: this.config.temperature,
       });
 
-      return result[0].generated_text;
+      let answer = result[0].generated_text;
+      
+      // Постобработка ответа
+      answer = answer.replace(/ОТВЕТ:\s*$/, '').trim(); // Удаляем "ОТВЕТ:" в конце
+      answer = answer.replace(/Ответ:\s*$/, '').trim(); // Удаляем "Ответ:" в конце
+      
+      // Если ответ пустой или слишком короткий, возвращаем заглушку
+      if (!answer || answer.length < 10) {
+        return "К сожалению, не удалось найти точную информацию по вашему запросу. Попробуйте переформулировать вопрос или свяжитесь с нашими специалистами.";
+      }
+      
+      return answer;
     } catch (error) {
       throw new Error(`Ошибка при обработке запроса: ${error}`);
     }
