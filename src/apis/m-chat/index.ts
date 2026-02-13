@@ -1,4 +1,4 @@
-import { httpQuery } from '../http';
+import HTTPQuery from '../http';
 
 class MasterChat {
   private url = `https://mastercheb.ru/chat`;
@@ -11,7 +11,7 @@ class MasterChat {
   }
 
   async query(message: string) {
-    const response = await httpQuery.post(this.url, {
+    const response = await HTTPQuery.post(this.url, {
       headers: {
         'Content-Type': 'application/json',
         // Authorization: `Bearer ${accessToken}`,

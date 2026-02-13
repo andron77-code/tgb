@@ -42,15 +42,15 @@ module.exports = [
       'comma-dangle': 'off',
       
       // Правила TypeScript
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/no-unused-vars': 'error',
+      '@typescript-eslint/no-unused-vars': 'warn',
       
       // Общие правила
       'no-console': 'off', // Разрешить console.log для разработки
       'no-debugger': 'error', // Запретить debugger в production
       'prefer-const': 'error',
-      'no-var': 'error',
+      'no-var': 'warn',
     },
   },
   

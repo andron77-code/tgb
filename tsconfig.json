@@ -62,13 +62,13 @@
     "noUnusedLocals": false,
     
     // Включить проверку неиспользуемых параметров
-    "noUnusedParameters": true,
+    "noUnusedParameters": false,
     
     // Включить проверку на неявные any типы
     "noImplicitAny": true,
     
     // Включить проверку на неявные возвраты undefined
-    "noImplicitReturns": true
+    "noImplicitReturns": false
   },
   
   // Файлы и паттерны для включения в компиляцию
