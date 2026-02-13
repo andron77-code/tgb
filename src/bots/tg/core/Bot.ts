@@ -51,14 +51,14 @@ export class Bot {
       // Инициализация базы данных
       await this.db.initialize();
 
-      // Регистрация middleware
-      this.registerMiddleware();
+      // Регистрация базовых команд (ПЕРЕД middleware!)
+      this.registerBasicCommands();
 
       // Регистрация обработчиков
       this.registerHandlers();
 
-      // Регистрация базовых команд
-      this.registerBasicCommands();
+      // Регистрация middleware (ПОСЛЕ команд)
+      this.registerMiddleware();
 
       logger.info('Bot initialized successfully');
     } catch (error) {
@@ -278,7 +278,11 @@ export class Bot {
     `;
 
     await ctx.reply(welcomeMessage);
-    await this.stateManager.setState(ctx.chat!.id, 'main');
+    
+    // Устанавливаем состояние только если есть chat
+    if (ctx.chat) {
+      await this.stateManager.setState(ctx.chat.id, 'main');
+    }
   }
 
   private async handleHelpCommand(ctx: Context): Promise<void> {
@@ -438,11 +442,15 @@ export class Bot {
         await ctx.answerCbQuery();
         
         if (callbackData === 'main_menu') {
-          await this.stateManager.setState(ctx.chat!.id, 'main');
-          await ctx.reply('🏠 Главное меню');
+          if (ctx.chat) {
+            await this.stateManager.setState(ctx.chat.id, 'main');
+            await ctx.reply('🏠 Главное меню');
+          }
         } else if (callbackData === 'delivery_calculation') {
-          await this.stateManager.setState(ctx.chat!.id, 'delivery_calculation');
-          await ctx.reply('📦 Введите город отправления');
+          if (ctx.chat) {
+            await this.stateManager.setState(ctx.chat.id, 'delivery_calculation');
+            await ctx.reply('📦 Введите город отправления');
+          }
         } else {
           await ctx.reply(`Получена команда: ${callbackData}`);
         }

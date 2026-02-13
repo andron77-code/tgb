@@ -27,6 +27,7 @@ export class CommandHandler {
 
   async handleUsers(ctx: ExtendedContext): Promise<void> {
     await ctx.reply('👥 Управление пользователями (заглушка команды /users)');
+    
   }
 }
 

@@ -58,10 +58,15 @@ export class SessionManager {
       await this.db.setSession(chatId, sessionData, this.options.defaultTtl);
 
       // Получаем обновленную сессию
-      const updatedSession = await this.db.getSession(chatId);
+      let updatedSession = await this.db.getSession(chatId);
       
+      // Если Redis отключен, возвращаем созданные данные
       if (!updatedSession) {
-        throw new Error('Failed to create session');
+        updatedSession = {
+          ...sessionData,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as SessionData;
       }
 
       logger.debug('Session created/updated', { 
@@ -137,10 +142,25 @@ export class SessionManager {
   // === Управление состоянием сессии ===
 
   async setState(chatId: number, state: string, data?: Record<string, any>): Promise<void> {
-    await this.updateSession(chatId, {
-      state,
-      data: data ? { ...data, stateChangedAt: new Date().toISOString() } : undefined,
-    });
+    const existingSession = await this.getSession(chatId);
+    
+    if (existingSession) {
+      // Обновляем существующую сессию
+      await this.updateSession(chatId, {
+        state,
+        data: data ? { ...existingSession.data, ...data, stateChangedAt: new Date().toISOString() } : existingSession.data,
+      });
+    } else {
+      // Создаем новую сессию с состоянием через DatabaseManager
+      await this.db.setSession(chatId, {
+        userId: chatId, // Временное значение
+        chatId: chatId,
+        username: '',
+        firstName: 'User',
+        state,
+        data: data ? { ...data, stateChangedAt: new Date().toISOString() } : undefined,
+      });
+    }
   }
 
   async getState(chatId: number): Promise<string | null> {
