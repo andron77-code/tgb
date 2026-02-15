@@ -9,13 +9,13 @@ import SessionManager from './SessionManager';
 import StateManager from './StateManager';
 import { botConfig } from '../config';
 import { logger } from '../../../helpers';
-import { HandlerFunction, MiddlewareFunction, ExtendedContext } from '../types';
+import { IExtendedHandlerFunction, MiddlewareFunction, ExtendedContext } from '../types';
 
 export interface BotOptions {
   databaseManager?: DatabaseManager;
   sessionManager?: SessionManager;
   stateManager?: StateManager;
-  handlers?: HandlerFunction[];
+  handlers?: IExtendedHandlerFunction[];
   middleware?: MiddlewareFunction[];
 }
 
@@ -24,7 +24,7 @@ export class Bot {
   private db: DatabaseManager;
   private sessionManager: SessionManager;
   private stateManager: StateManager;
-  private handlers: HandlerFunction[] = [];
+  private handlers: IExtendedHandlerFunction[] = [];
   private middleware: MiddlewareFunction[] = [];
   private isStarted: boolean = false;
 
@@ -51,13 +51,10 @@ export class Bot {
       // Инициализация базы данных
       await this.db.initialize();
 
-      // Регистрация базовых команд (ПЕРЕД middleware!)
-      this.registerBasicCommands();
-
       // Регистрация обработчиков
       this.registerHandlers();
 
-      // Регистрация middleware (ПОСЛЕ команд)
+      // Регистрация middleware
       this.registerMiddleware();
 
       logger.info('Bot initialized successfully');
@@ -196,30 +193,40 @@ export class Bot {
   // === Регистрация обработчиков ===
 
   private registerHandlers(): void {
-    // Регистрация пользовательских обработчиков
+    // Разделяем handlers по типам
+    const commands: IExtendedHandlerFunction[] = [];
+    const messages: IExtendedHandlerFunction[] = [];
+    const callbacks: IExtendedHandlerFunction[] = [];
+
     for (const handler of this.handlers) {
-      this.telegraf.on('message', handler);
+      if (handler.type.includes('message-')) {
+        // Handler с фильтром - сообщения
+        messages.push(handler);
+      } else if (handler.type === 'callback') {
+        // Callback handlers
+        callbacks.push(handler);
+      } else if (handler.type.includes('command')) {
+        // Command handlers
+        commands.push(handler);
+      }
     }
 
-    // Обработка всех текстовых сообщений
-    this.telegraf.on(message('text'), this.handleTextMessage.bind(this));
+    // Регистрируем команды через text с проверкой на команду
+    for (const handler of commands) {
+      const command = handler.type.split('-')[1];
+      this.telegraf.command(command, async (ctx, next) => handler.handler(this.getExtendedContext(ctx)));
+    }
 
-    // Обработка других типов сообщений
-    this.telegraf.on(message('photo'), this.handlePhoto.bind(this));
-    this.telegraf.on(message('video'), this.handleVideo.bind(this));
-    this.telegraf.on(message('document'), this.handleDocument.bind(this));
-    this.telegraf.on(message('audio'), this.handleAudio.bind(this));
-    this.telegraf.on(message('voice'), this.handleVoice.bind(this));
-    this.telegraf.on(message('sticker'), this.handleSticker.bind(this));
-    this.telegraf.on(message('location'), this.handleLocation.bind(this));
-    this.telegraf.on(message('contact'), this.handleContact.bind(this));
-    this.telegraf.on(message('poll'), this.handlePoll.bind(this));
+    // Регистрируем сообщения с фильтрами
+    for (const handler of messages) {
+      const filter = message(handler.type.split('-')[1] as any)
+      this.telegraf.on(filter, (ctx) => handler.handler(this.getExtendedContext(ctx)));
+    }
 
-    // Обработка callback запросов (кнопки)
-    this.telegraf.on('callback_query', this.handleCallback.bind(this));
-
-    // Обработка inline запросов
-    this.telegraf.on('inline_query', this.handleInline.bind(this));
+    // Регистрируем callbacks
+    for (const handler of callbacks) {
+      this.telegraf.on('callback_query', (ctx) => handler.handler(this.getExtendedContext(ctx)));
+    }
 
     // Обработка ошибок
     this.telegraf.catch((error, ctx) => {
@@ -227,270 +234,16 @@ export class Bot {
     });
   }
 
-  // === Базовые команды ===
-
-  private registerBasicCommands(): void {
-    // Команда /start
-    this.telegraf.command('start', async (ctx) => {
-      try {
-        await this.handleStartCommand(ctx);
-      } catch (error) {
-        logger.error('Start command error:', error);
-        await ctx.reply('Произошла ошибка. Попробуйте позже.');
-      }
-    });
-
-    // Команда /help
-    this.telegraf.command('help', async (ctx) => {
-      try {
-        await this.handleHelpCommand(ctx);
-      } catch (error) {
-        logger.error('Help command error:', error);
-        await ctx.reply('Произошла ошибка. Попробуйте позже.');
-      }
-    });
-
-    // Команда /status
-    this.telegraf.command('status', async (ctx) => {
-      try {
-        await this.handleStatusCommand(ctx);
-      } catch (error) {
-        logger.error('Status command error:', error);
-        await ctx.reply('Произошла ошибка. Попробуйте позже.');
-      }
-    });
-  }
-
-  // === Обработчики команд ===
-
-  private async handleStartCommand(ctx: Context): Promise<void> {
-    const welcomeMessage = `
-👋 Добро пожаловать в бот для расчета стоимости доставки!
-
-Я помогу вам рассчитать стоимость и сроки доставки по России через 5 основных служб:
-• СДЭК
-• Почта России  
-• Деловые Линии
-• ПЭК
-• Байкал Сервис
-
-Выберите действие в меню ниже:
-    `;
-
-    await ctx.reply(welcomeMessage);
-    
-    // Устанавливаем состояние только если есть chat
-    if (ctx.chat) {
-      await this.stateManager.setState(ctx.chat.id, 'main');
-    }
-  }
-
-  private async handleHelpCommand(ctx: Context): Promise<void> {
-    const helpMessage = `
-📖 Справка по боту
-
-🚀 Основные функции:
-• Расчет стоимости доставки
-• Сравнение служб доставки
-• История расчетов
-• Настройки
-
-📝 Команды:
-/start - Начать работу
-/help - Показать справку
-/status - Статус бота
-
-💡 Для расчета доставки просто напишите "Рассчитать доставку" или выберите в меню
-    `;
-
-    await ctx.reply(helpMessage);
-  }
-
-  private async handleStatusCommand(ctx: Context): Promise<void> {
-    try {
-      const health = await this.db.healthCheck();
-      const stats = await this.db.getStatistics();
-
-      const statusMessage = `
-📊 Статус бота
-
-🔗 Базы данных:
-• PostgreSQL: ${health.postgres ? '✅' : '❌'}
-• Redis: ${health.redis ? '✅' : '❌'}
-
-📈 Статистика:
-• Всего пользователей: ${stats.totalUsers}
-• Активных сессий: ${stats.activeSessions}
-• Расчетов всего: ${stats.totalCalculations}
-• Расчетов сегодня: ${stats.calculationsToday}
-
-⏰ Время: ${new Date().toLocaleString('ru-RU')}
-      `;
-
-      await ctx.reply(statusMessage);
-    } catch (error) {
-      logger.error('Status command error:', error);
-      await ctx.reply('❌ Не удалось получить статус');
-    }
-  }
-
-  // === Обработчики сообщений ===
-
-  private async handleTextMessage(ctx: Context): Promise<void> {
-    const text = ctx.message && 'text' in ctx.message ? ctx.message.text : '';
-    
-    if (!text) return;
-
-    logger.debug('Text message received', { 
-      userId: ctx.from?.id, 
-      chatId: ctx.chat?.id, 
-      text: text.substring(0, 50) 
-    });
-
-    // Базовая обработка текстовых сообщений
-    if (text.toLowerCase().includes('доставк')) {
-      await ctx.reply('Для расчета доставки выберите соответствующий пункт в меню 📦');
-    } else if (text.toLowerCase().includes('истор')) {
-      await ctx.reply('История расчетов будет доступна в ближайшее время 📋');
-    } else {
-      await ctx.reply('Выберите действие в меню или напишите "Рассчитать доставку" 🚀');
-    }
-  }
-
-  private async handlePhoto(ctx: Context): Promise<void> {
-    logger.debug('Photo message received', { userId: ctx.from?.id });
-    await ctx.reply('📷 Получено фото. В настоящее время обработка фото не поддерживается.');
-  }
-
-  private async handleVideo(ctx: Context): Promise<void> {
-    logger.debug('Video message received', { userId: ctx.from?.id });
-    await ctx.reply('🎥 Получено видео. В настоящее время обработка видео не поддерживается.');
-  }
-
-  private async handleDocument(ctx: Context): Promise<void> {
-    logger.debug('Document message received', { userId: ctx.from?.id });
-    await ctx.reply('📄 Получен документ. В настоящее время обработка документов не поддерживается.');
-  }
-
-  private async handleAudio(ctx: Context): Promise<void> {
-    logger.debug('Audio message received', { userId: ctx.from?.id });
-    await ctx.reply('🎵 Получено аудио. В настоящее время обработка аудио не поддерживается.');
-  }
-
-  private async handleVoice(ctx: Context): Promise<void> {
-    logger.debug('Voice message received', { userId: ctx.from?.id });
-    await ctx.reply('🎤 Получено голосовое сообщение. В настоящее время обработка голоса не поддерживается.');
-  }
-
-  private async handleSticker(ctx: Context): Promise<void> {
-    logger.debug('Sticker message received', { userId: ctx.from?.id });
-    await ctx.reply('😄 Получен стикер! Прикольный! 😊');
-  }
-
-  private async handleLocation(ctx: Context): Promise<void> {
-    const location = ctx.message && 'location' in ctx.message ? ctx.message.location : undefined;
-    
-    if (location) {
-      logger.debug('Location received', { 
-        userId: ctx.from?.id, 
-        latitude: location.latitude, 
-        longitude: location.longitude 
-      });
-      
-      await ctx.reply(`📍 Получена геолокация:
-Широта: ${location.latitude}
-Долгота: ${location.longitude}
-
-Эту локацию можно использовать для расчета доставки 🚚`);
-    }
-  }
-
-  private async handleContact(ctx: Context): Promise<void> {
-    const contact = ctx.message && 'contact' in ctx.message ? ctx.message.contact : undefined;
-    
-    if (contact) {
-      logger.debug('Contact received', { 
-        userId: ctx.from?.id, 
-        contactUserId: contact.user_id,
-        phone: contact.phone_number 
-      });
-      
-      await ctx.reply(`📞 Получен контакт:
-Имя: ${contact.first_name} ${contact.last_name || ''}
-Телефон: ${contact.phone_number}
-
-Контакт сохранен ✅`);
-    }
-  }
-
-  private async handlePoll(ctx: Context): Promise<void> {
-    logger.debug('Poll message received', { userId: ctx.from?.id });
-    await ctx.reply('📊 Получен опрос. Спасибо за участие!');
-  }
-
-  private async handleCallback(ctx: Context): Promise<void> {
-    const callbackData = ctx.callbackQuery && 'data' in ctx.callbackQuery ? ctx.callbackQuery.data : undefined;
-    
-    if (callbackData) {
-      logger.debug('Callback received', { 
-        userId: ctx.from?.id, 
-        data: callbackData 
-      });
-
-      try {
-        // Базовая обработка callback
-        await ctx.answerCbQuery();
-        
-        if (callbackData === 'main_menu') {
-          if (ctx.chat) {
-            await this.stateManager.setState(ctx.chat.id, 'main');
-            await ctx.reply('🏠 Главное меню');
-          }
-        } else if (callbackData === 'delivery_calculation') {
-          if (ctx.chat) {
-            await this.stateManager.setState(ctx.chat.id, 'delivery_calculation');
-            await ctx.reply('📦 Введите город отправления');
-          }
-        } else {
-          await ctx.reply(`Получена команда: ${callbackData}`);
-        }
-      } catch (error) {
-        logger.error('Callback handling error:', error);
-      }
-    }
-  }
-
-  private async handleInline(ctx: Context): Promise<void> {
-    logger.debug('Inline query received', { 
-      userId: ctx.from?.id, 
-      query: ctx.inlineQuery?.query 
-    });
-    
-    // Базовая обработка inline запросов
-    await ctx.answerInlineQuery([]);
-  }
-
-  // === Управление обработчиками ===
-
-  addHandler(handler: HandlerFunction): void {
-    this.handlers.push(handler);
-    
-    if (this.isStarted) {
-      this.telegraf.on('message', handler);
-    }
-  }
-
-  addMiddleware(middleware: MiddlewareFunction): void {
-    this.middleware.push(middleware);
-    
-    if (this.isStarted) {
-      this.telegraf.use(async (ctx, next) => {
-        await middleware(ctx, next);
-      });
-    }
-  }
 
   // === Утилиты ===
+
+  getExtendedContext(ctx: any): ExtendedContext {
+    const _ctx: ExtendedContext = ctx as unknown as ExtendedContext;
+    _ctx.stateManager = this.stateManager
+    _ctx.sessionManager = this.sessionManager
+    _ctx.db = this.db
+    return _ctx
+  }
 
   getTelegrafInstance(): Telegraf {
     return this.telegraf;

@@ -11,6 +11,12 @@ import AuthService from './services/AuthService';
 import DatabaseManager from './core/DatabaseManager';
 import { logger } from '../../helpers';
 
+// Импорт всех handlers
+import MessageHandler from './handlers/MessageHandler';
+import CallbackHandler from './handlers/CallbackHandler';
+import CommandHandler from './handlers/CommandHandler';
+
+
 /**
  * Инициализация и запуск бота
  */
@@ -25,7 +31,7 @@ async function main() {
     // Инициализация сервиса авторизации
     const authService = new AuthService(db);
 
-    // Создание экземпляра бота с базовым middleware
+    // Создание экземпляра бота с полным набором handlers
     const bot = new Bot({
       databaseManager: db,
       middleware: [
@@ -41,13 +47,29 @@ async function main() {
         },
       ],
       handlers: [
-        // Дополнительные обработчики
-        async (ctx) => {
-          // Обработка специальных команд
-          if (ctx.message?.text?.startsWith('/test')) {
-            await ctx.reply('🧪 Тестовый режим работает!');
-          }
-        },
+        // Обработка команд
+        { type: 'command-help', handler: CommandHandler.handleHelp.bind(CommandHandler)},
+        { type: 'command-start', handler: CommandHandler.handleStart.bind(CommandHandler)},
+        
+        { type: 'command-status', handler: CommandHandler.handleStatus.bind(CommandHandler)},
+        // { type: 'command', handler: CommandHandler.handleAdmin.bind(CommandHandler)},
+        // { type: 'command', handler: CommandHandler.handleDelivery.bind(CommandHandler)},
+        { type: 'command-users', handler: CommandHandler.handleUsers.bind(CommandHandler)},
+        
+        // Обработка сообщений с правильными фильтрами
+        { type: 'message-text', handler: MessageHandler.handleText.bind(MessageHandler)},
+        { type: 'message-photo', handler: MessageHandler.handlePhoto.bind(MessageHandler)},
+        { type: 'message-video', handler: MessageHandler.handleVideo.bind(MessageHandler)},
+        { type: 'message-document', handler: MessageHandler.handleDocument.bind(MessageHandler)},
+        { type: 'message-audio', handler: MessageHandler.handleAudio.bind(MessageHandler)},
+        { type: 'message-voice', handler: MessageHandler.handleVoice.bind(MessageHandler)},
+        { type: 'message-sticker', handler: MessageHandler.handleSticker.bind(MessageHandler)},
+        { type: 'message-location', handler: MessageHandler.handleLocation.bind(MessageHandler)},
+        { type: 'message-contact', handler: MessageHandler.handleContact.bind(MessageHandler)},
+        { type: 'message-poll', handler: MessageHandler.handlePoll.bind(MessageHandler)},
+        
+        // Обработка callback запросов
+        { type: 'callback', handler: CallbackHandler.handleCallback.bind(CallbackHandler)},
       ],
     });
 

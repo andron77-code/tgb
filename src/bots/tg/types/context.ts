@@ -14,4 +14,5 @@ export interface ExtendedContext extends Context<Update> {
   stateManager?: StateManager;
   db?: DatabaseManager;
   auth?: AuthResult;
+  callbackQuery: any;
 }

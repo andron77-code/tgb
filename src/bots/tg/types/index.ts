@@ -1,6 +1,8 @@
 /**
  * Основные типы для Telegram бота
  */
+import { Context } from 'telegraf';
+import { ExtendedContext } from './context';
 
 export interface BotConfig {
   token: string;
@@ -162,8 +164,13 @@ export interface UserRole {
   assignedBy: number;
 }
 
-export type HandlerFunction = (ctx: any) => Promise<void>;
-export type MiddlewareFunction = (ctx: any, next: () => Promise<void>) => Promise<void>;
 
+export type MiddlewareFunction = (ctx: Context, next: () => Promise<void>) => Promise<void>;
+
+export type THandlerFucnctionType = 'callback' | 'command-users' | 'command-status' | 'command-start' | 'command-help' | 'message-text' | 'message-photo' | 'message-video' | 'message-document' | 'message-voice' | 'message-sticker' | 'message-location' | 'message-contact' | 'message-poll' | 'message-audio';
+export interface IExtendedHandlerFunction {
+  handler: (ctx: ExtendedContext) => Promise<void>;
+  type: THandlerFucnctionType;
+}
 // Экспорт ExtendedContext
 export { ExtendedContext } from './context';
